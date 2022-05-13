@@ -84,6 +84,7 @@ func (s *server) listenAndServe() error {
 func (s *server) processEvents() {
 	prevTime := time.Now()
 	ticker := time.NewTicker(updateStatisticInterval)
+	defer ticker.Stop()
 
 	for {
 		select {
