@@ -4,10 +4,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/racoon-devel/downloader/internal/client"
-	"github.com/racoon-devel/downloader/internal/protocol"
+	"github.com/racoon-devel/downloader/internal/api/downloader"
 	"github.com/racoon-devel/downloader/internal/server"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/emptypb"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -42,16 +45,31 @@ func main() {
 		if len(args) != 1 {
 			log.Fatalf("URL must be presented for task command")
 		}
-		runAsyncCommand(done, ctx, protocol.MakeCommand(protocol.Task, args...))
+		runAsyncCommand(done, func(client downloader.DownloaderClient) error {
+			_, err := client.AddTask(ctx, &downloader.AddTaskRequest{Url: args[0]})
+			return err
+		})
 
 	case "status":
-		runAsyncCommand(done, ctx, protocol.Status)
+		runAsyncCommand(done, func(client downloader.DownloaderClient) error {
+			resp, err := client.Status(ctx, &emptypb.Empty{})
+			if err == nil {
+				log.Println(server.StatDictionary(resp.Stat))
+			}
+			return err
+		})
 
 	case "stop":
-		runAsyncCommand(done, ctx, protocol.Stop)
+		runAsyncCommand(done, func(client downloader.DownloaderClient) error {
+			_, err := client.Stop(ctx, &emptypb.Empty{})
+			return err
+		})
 
 	case "done":
-		runAsyncCommand(done, ctx, protocol.Done)
+		runAsyncCommand(done, func(client downloader.DownloaderClient) error {
+			_, err := client.Done(ctx, &emptypb.Empty{})
+			return err
+		})
 
 	default:
 		printUsage()
@@ -101,6 +119,13 @@ func parseServerArgs(args []string) (server.Settings, error) {
 	}, nil
 }
 
+func connect() (*grpc.ClientConn, error) {
+	conn, err := grpc.Dial(server.SocketAddr, grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithDialer(func(addr string, timeout time.Duration) (net.Conn, error) {
+		return net.DialTimeout("unix", addr, timeout)
+	}))
+	return conn, err
+}
+
 func runAsync(done chan<- bool, f func() error) {
 	go func() {
 		if err := f(); err != nil {
@@ -112,12 +137,22 @@ func runAsync(done chan<- bool, f func() error) {
 	}()
 }
 
-func runAsyncCommand(done chan<- bool, ctx context.Context, command protocol.Command) {
+func runAsyncCommand(done chan<- bool, command func(client downloader.DownloaderClient) error) {
 	runAsync(done, func() error {
-		r, err := client.Execute(ctx, command)
-		if err == nil {
-			log.Println("[Server]", r)
+		conn, err := connect()
+		if err != nil {
+			return fmt.Errorf("cannot connect to server: %w", err)
 		}
-		return err
+		defer func() {
+			_ = conn.Close()
+		}()
+
+		cli := downloader.NewDownloaderClient(conn)
+		err = command(cli)
+		if err != nil {
+			return fmt.Errorf("cannot process command: %w", err)
+		}
+		log.Println("Ok")
+		return nil
 	})
 }

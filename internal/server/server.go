@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/racoon-devel/downloader/internal/api/downloader"
 	"github.com/racoon-devel/downloader/internal/task"
+	"google.golang.org/grpc"
 	"log"
 	"net"
 	"os"
@@ -22,8 +24,11 @@ type Settings struct {
 }
 
 type server struct {
-	ctx    context.Context
-	cancel context.CancelFunc
+	downloader.UnimplementedDownloaderServer
+
+	grpcServer *grpc.Server
+	ctx        context.Context
+	cancel     context.CancelFunc
 
 	timeout time.Duration
 	taskCh  chan *task.Task
@@ -33,53 +38,57 @@ type server struct {
 	stat statistic
 }
 
+// Run starts gRPC server which handle user requests
 func Run(settings Settings) error {
-	var srv server
+	srv := server{grpcServer: grpc.NewServer()}
 	srv.ctx, srv.cancel = context.WithCancel(settings.Ctx)
+
 	srv.tasks = make([]*task.Task, 0)
 	srv.taskCh = make(chan *task.Task, maxTasksPerMoment)
+
 	srv.timeout = settings.Timeout
-	return srv.run()
+
+	return srv.listenAndServe()
 }
 
-func (s *server) run() error {
+func (s *server) listenAndServe() error {
+	// bind and listen unix socket
 	if err := os.RemoveAll(SocketAddr); err != nil {
 		return fmt.Errorf("cannot recreate unix socket: %w", err)
 	}
-
 	l, err := net.Listen("unix", SocketAddr)
 	if err != nil {
 		return fmt.Errorf("listen failed: %w", err)
 	}
-	defer l.Close()
-
-	errChan := make(chan error)
-
 	log.Println("Server started")
 
+	// register callbacks for RPC server
+	downloader.RegisterDownloaderServer(s.grpcServer, s)
+
+	// start processing command channels
+	s.wg.Add(1)
 	go func() {
-		for {
-			conn, err := l.Accept()
-			if err != nil {
-				errChan <- err
-				return
-			}
-
-			go s.processIncomingConnection(conn)
-		}
+		defer s.wg.Done()
+		s.processEvents()
 	}()
-
 	defer s.wg.Wait()
 
+	// run gRPC server
+	if err = s.grpcServer.Serve(l); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *server) processEvents() {
 	now := time.Now()
 
 	for {
 		select {
-		case err = <-errChan:
-			return err
-
 		case <-s.ctx.Done():
-			return nil
+			s.grpcServer.Stop()
+			return
 
 		case t := <-s.taskCh:
 			if t != nil {

@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+option go_package = "./downloader";
+
+service Downloader {
+  rpc AddTask(AddTaskRequest) returns (google.protobuf.Empty);
+  rpc Status(google.protobuf.Empty) returns (StatusResponse);
+  rpc Stop(google.protobuf.Empty) returns(google.protobuf.Empty);
+  rpc Done(google.protobuf.Empty) returns(google.protobuf.Empty);
+}
+
+message AddTaskRequest {
+  string url = 1;
+}
+
+message StatusResponse {
+  map<string, uint32> stat = 1;
+}

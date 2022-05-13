@@ -10,20 +10,25 @@ import (
 
 const readBufferSize = 65536
 
+// Task implements HTTP stream download session
 type Task struct {
+	// Timeout is a socket read timeout
 	Timeout time.Duration
-	url     string
-	ctx     context.Context
-	cancel  context.CancelFunc
-	status  Status
+
+	url    string
+	ctx    context.Context
+	cancel context.CancelFunc
+	status Status
 }
 
+// NewTask creates initialized task
 func NewTask(ctx context.Context, url string) *Task {
 	t := &Task{url: url}
 	t.ctx, t.cancel = context.WithCancel(ctx)
 	return t
 }
 
+// Run starts async stream receiving
 func (t *Task) Run(wg *sync.WaitGroup) {
 	wg.Add(1)
 	go func() {
@@ -32,10 +37,12 @@ func (t *Task) Run(wg *sync.WaitGroup) {
 	}()
 }
 
+// Status gets task state
 func (t Task) Status() Status {
 	return t.status
 }
 
+// Stop immediately stops task
 func (t *Task) Stop() {
 	t.cancel()
 }
