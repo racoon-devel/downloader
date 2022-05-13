@@ -17,7 +17,7 @@ import (
 	"time"
 )
 
-const defaultTimeoutSec uint = 5
+const defaultTimeoutSec uint = 0
 
 func main() {
 	if len(os.Args) < 2 {
@@ -107,7 +107,7 @@ func printUsage() {
 
 func parseServerArgs(args []string) (server.Settings, error) {
 	fs := flag.NewFlagSet("server", flag.ContinueOnError)
-	timeout := flag.Uint("timeout", defaultTimeoutSec, "read timeout for HTTP stream (sec)")
+	timeout := fs.Uint("timeout", defaultTimeoutSec, "read timeout for HTTP stream (sec)")
 
 	err := fs.Parse(args)
 	if err != nil {

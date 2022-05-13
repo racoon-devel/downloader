@@ -68,17 +68,47 @@ func (t *Task) process() {
 		return
 	}
 
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("[%s] Unexpected status code: %d", t.url, resp.StatusCode)
+		return
+	}
+
+	/*
+		Так как мы не можем для http.Response выставить таймаут для сокета, то
+		используем такой костыль для контролирования, что данные вообще приходят
+	*/
+	notifyCh := make(chan bool)
+	if t.Timeout != 0 {
+		go func() {
+			for {
+				select {
+				case <-t.ctx.Done():
+					return
+				case <-notifyCh:
+				case <-time.After(t.Timeout):
+					log.Printf("[%s] Read timeout expired", t.url)
+					t.cancel()
+					return
+				}
+			}
+		}()
+	}
+
 	log.Printf("[%s] Connected", t.url)
 	t.status = StatusActive
 
-	defer resp.Body.Close()
 	buffer := make([]byte, readBufferSize)
 	for {
 		_, err = resp.Body.Read(buffer)
 		if err != nil {
 			log.Printf("[%s] Read failed: %s", t.url, err)
+			t.cancel()
 			return
 		}
+		if t.Timeout != 0 {
+			notifyCh <- true
+		}
 	}
-
 }
