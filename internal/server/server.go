@@ -82,7 +82,8 @@ func (s *server) listenAndServe() error {
 }
 
 func (s *server) processEvents() {
-	now := time.Now()
+	prevTime := time.Now()
+	ticker := time.NewTicker(updateStatisticInterval)
 
 	for {
 		select {
@@ -99,11 +100,11 @@ func (s *server) processEvents() {
 				s.stopTasks()
 			}
 
-		case <-time.After(updateStatisticInterval):
+		case now := <-ticker.C:
 			s.updateStatistic()
-			if time.Since(now) >= printStatisticInterval {
+			if now.Sub(prevTime) >= printStatisticInterval {
 				s.printStatistic()
-				now = time.Now()
+				prevTime = now
 			}
 		}
 	}
