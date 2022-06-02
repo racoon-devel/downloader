@@ -3,17 +3,17 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/racoon-devel/downloader/internal/api/downloader"
-	"github.com/racoon-devel/downloader/internal/task"
-	"google.golang.org/grpc"
 	"log"
 	"net"
 	"os"
 	"sync"
 	"time"
+
+	"github.com/racoon-devel/downloader/internal/api/downloader"
+	"github.com/racoon-devel/downloader/internal/task"
+	"google.golang.org/grpc"
 )
 
-const SocketAddr = "/tmp/downloader.sock"
 const maxTasksPerMoment = 8192
 const printStatisticInterval = 5 * time.Second
 const updateStatisticInterval = 1 * time.Second
@@ -21,6 +21,8 @@ const updateStatisticInterval = 1 * time.Second
 type Settings struct {
 	Ctx     context.Context
 	Timeout time.Duration
+	Network string
+	Addr    string
 }
 
 type server struct {
@@ -48,15 +50,19 @@ func Run(settings Settings) error {
 
 	srv.timeout = settings.Timeout
 
-	return srv.listenAndServe()
+	return srv.listenAndServe(&settings)
 }
 
-func (s *server) listenAndServe() error {
+func (s *server) listenAndServe(settings *Settings) error {
+
 	// bind and listen unix socket
-	if err := os.RemoveAll(SocketAddr); err != nil {
-		return fmt.Errorf("cannot recreate unix socket: %w", err)
+	if settings.Network == "unix" {
+		if err := os.RemoveAll(settings.Addr); err != nil {
+			return fmt.Errorf("cannot recreate unix socket: %w", err)
+		}
 	}
-	l, err := net.Listen("unix", SocketAddr)
+
+	l, err := net.Listen(settings.Network, settings.Addr)
 	if err != nil {
 		return fmt.Errorf("listen failed: %w", err)
 	}
