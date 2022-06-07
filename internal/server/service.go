@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+
 	"github.com/racoon-devel/downloader/internal/api/downloader"
 	"github.com/racoon-devel/downloader/internal/task"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -27,5 +28,13 @@ func (s *server) Stop(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty
 
 func (s *server) Done(ctx context.Context, empty *emptypb.Empty) (*emptypb.Empty, error) {
 	s.cancel()
+	return &emptypb.Empty{}, nil
+}
+
+func (s *server) AddTasks(ctx context.Context, request *downloader.AddTasksRequest) (*emptypb.Empty, error) {
+	for _, url := range request.Urls {
+		t := task.NewTask(s.ctx, url)
+		s.taskCh <- t
+	}
 	return &emptypb.Empty{}, nil
 }

@@ -6,6 +6,7 @@ option go_package = "./downloader";
 
 service Downloader {
   rpc AddTask(AddTaskRequest) returns (google.protobuf.Empty);
+  rpc AddTasks(AddTasksRequest) returns (google.protobuf.Empty);
   rpc Status(google.protobuf.Empty) returns (StatusResponse);
   rpc Stop(google.protobuf.Empty) returns(google.protobuf.Empty);
   rpc Done(google.protobuf.Empty) returns(google.protobuf.Empty);
@@ -13,6 +14,10 @@ service Downloader {
 
 message AddTaskRequest {
   string url = 1;
+}
+
+message AddTasksRequest {
+  repeated string urls = 1;
 }
 
 message StatusResponse {

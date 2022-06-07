@@ -11,10 +11,11 @@ import (
 
 	"github.com/racoon-devel/downloader/internal/api/downloader"
 	"github.com/racoon-devel/downloader/internal/task"
+	"github.com/racoon-devel/downloader/internal/utils"
 	"google.golang.org/grpc"
 )
 
-const maxTasksPerMoment = 8192
+const maxTasksPerMoment = 10000
 const printStatisticInterval = 5 * time.Second
 const updateStatisticInterval = 1 * time.Second
 
@@ -42,7 +43,7 @@ type server struct {
 
 // Run starts gRPC server which handle user requests
 func Run(settings Settings) error {
-	srv := server{grpcServer: grpc.NewServer()}
+	srv := server{grpcServer: grpc.NewServer(grpc.MaxRecvMsgSize(utils.MaxMessageSize), grpc.MaxSendMsgSize(utils.MaxMessageSize))}
 	srv.ctx, srv.cancel = context.WithCancel(settings.Ctx)
 
 	srv.tasks = make([]*task.Task, 0)
