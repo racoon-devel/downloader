@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"crypto/tls"
 	"log"
 	"net/http"
 	"sync"
@@ -60,8 +61,11 @@ func (t *Task) process() {
 
 	log.Printf("[%s] Connecting...", t.url)
 
-	// TODO: properly set timeout
-	var c http.Client
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	c := http.Client{Transport: transport}
+
 	resp, err := c.Do(req)
 	if err != nil {
 		log.Printf("[%s] Perform request failed: %s", t.url, err)
